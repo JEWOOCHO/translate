@@ -1,6 +1,7 @@
 # PDF 번역기
 
 > **저장소**: https://github.com/JEWOOCHO/translate
+> **웹 버전**: https://jewoocho.github.io/translate/
 
 PDF 파일을 업로드하면 영어 텍스트를 한글로 번역하고, TXT / PDF / DOCX 형식으로 저장하는 Flask 웹 애플리케이션.
 
