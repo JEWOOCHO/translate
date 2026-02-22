@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF 번역기</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <header class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-semibold text-gray-800">PDF 번역기</h1>
+      <p id="stepLabel" class="text-sm text-gray-500 mt-0.5">Step 1 — PDF 업로드 및 문서 인식</p>
+    </div>
+    <button id="backBtn" class="hidden text-sm text-gray-500 hover:text-gray-800">← 처음으로</button>
+  </header>
+
+  <div id="step1View">
+    <main class="flex gap-6 p-6 h-[calc(100vh-73px)]">
+      <div class="w-80 flex-shrink-0 flex flex-col gap-4">
+        <div id="dropzone" class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
+          <input type="file" id="fileInput" accept=".pdf" class="hidden" />
+          <svg class="mx-auto mb-3 w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+          <p class="text-sm font-medium text-gray-700">PDF를 여기에 드래그하거나</p>
+          <button id="selectBtn" class="mt-2 text-sm text-blue-600 hover:underline font-medium">파일 선택</button>
+          <p class="mt-2 text-xs text-gray-400">최대 20MB · PDF만 허용</p>
+        </div>
+        <div id="fileInfo" class="hidden bg-white rounded-xl border border-gray-200 p-4">
+          <div class="flex items-start gap-3">
+            <svg class="w-8 h-8 text-red-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8 18v-1h8v1H8zm0-3v-1h8v1H8zm0-3v-1h5v1H8z"/>
+            </svg>
+            <div class="min-w-0">
+              <p id="fileName" class="text-sm font-medium text-gray-800 truncate"></p>
+              <p id="pageCount" class="text-xs text-gray-500 mt-0.5"></p>
+            </div>
+          </div>
+        </div>
+        <div id="rangeSelector" class="hidden bg-white rounded-xl border border-gray-200 p-4">
+          <p class="text-xs font-semibold text-gray-600 mb-3">번역 범위</p>
+          <div class="space-y-2">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="rangeMode" value="all" checked class="accent-blue-500" />
+              <span class="text-sm text-gray-700">전체 번역</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="rangeMode" value="range" class="accent-blue-500" />
+              <span class="text-sm text-gray-700">페이지 범위 지정</span>
+            </label>
+            <div id="rangeInputs" class="hidden pl-5 pt-1 flex items-center gap-2">
+              <input type="number" id="fromPage" min="1" value="1" class="w-16 border border-gray-300 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              <span class="text-sm text-gray-400">~</span>
+              <input type="number" id="toPage" min="1" class="w-16 border border-gray-300 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              <span id="rangeHint" class="text-xs text-gray-400"></span>
+            </div>
+          </div>
+        </div>
+        <div id="spinner" class="hidden flex items-center gap-3 bg-white rounded-xl border border-gray-200 p-4">
+          <svg class="animate-spin w-5 h-5 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+          </svg>
+          <span class="text-sm text-gray-600">텍스트 추출 중...</span>
+        </div>
+        <div id="errorBox" class="hidden bg-red-50 border border-red-200 rounded-xl p-4">
+          <p class="text-sm text-red-700" id="errorMsg"></p>
+          <button id="retryBtn" class="mt-2 text-xs text-red-600 hover:underline font-medium">다시 업로드</button>
+        </div>
+        <button id="translateBtn" disabled class="mt-auto w-full py-3 rounded-xl font-semibold text-white bg-blue-300 cursor-not-allowed transition-colors">번역 시작 →</button>
+      </div>
+      <div class="flex-1 bg-white rounded-xl border border-gray-200 flex flex-col overflow-hidden">
+        <div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-gray-700">추출된 텍스트 미리보기</h2>
+          <span id="previewMeta" class="text-xs text-gray-400"></span>
+        </div>
+        <div id="previewEmpty" class="flex-1 flex flex-col items-center justify-center text-gray-400">
+          <svg class="w-12 h-12 mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          <p class="text-sm">PDF를 업로드하면 여기에 내용이 표시됩니다.</p>
+        </div>
+        <div id="previewContent" class="hidden flex-1 overflow-y-auto p-5 space-y-5"></div>
+      </div>
+    </main>
+  </div>
+
+  <div id="step2View" class="hidden p-6 space-y-5">
+    <div class="bg-white rounded-xl border border-gray-200 p-5">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-sm font-semibold text-gray-700" id="progressLabel">번역 준비 중...</span>
+        <div class="flex items-center gap-3">
+          <span class="text-xs text-gray-400" id="progressCount"></span>
+          <button id="pauseBtn" class="hidden px-3 py-1 rounded-lg text-xs font-semibold border transition-colors border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100">⏸ 일시 중단</button>
+        </div>
+      </div>
+      <div class="w-full bg-gray-100 rounded-full h-2">
+        <div id="progressBar" class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width:0%"></div>
+      </div>
+      <div id="pausedNotice" class="hidden mt-3 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
+        <span class="text-xs text-amber-800 font-medium">번역이 중단되었습니다. 지금까지 번역된 페이지를 저장하거나 재개할 수 있습니다.</span>
+        <button id="resumeBtn" class="ml-4 px-3 py-1 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors whitespace-nowrap">▶ 재개</button>
+      </div>
+    </div>
+    <div id="warningBanner" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+      <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+      </svg>
+      <div>
+        <p class="text-sm font-semibold text-amber-800">번역 품질 검토 필요</p>
+        <p class="text-xs text-amber-700 mt-0.5" id="warningDetail"></p>
+      </div>
+    </div>
+    <div id="resultsSection" class="space-y-4"></div>
+    <div class="flex justify-end pt-2">
+      <button id="toStep3Btn" disabled class="px-6 py-3 rounded-xl font-semibold text-white bg-green-300 cursor-not-allowed transition-colors">저장하기 →</button>
+    </div>
+  </div>
+
+  <div id="step3View" class="hidden p-6 space-y-5 max-w-3xl mx-auto">
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+      <h2 class="text-base font-semibold text-gray-800 mb-1">번역 요약</h2>
+      <p id="summaryPartialNotice" class="hidden text-xs text-amber-700 mb-4">일부 페이지만 번역된 상태로 저장합니다.</p>
+      <div class="grid grid-cols-3 gap-4 text-center mt-4">
+        <div class="bg-gray-50 rounded-lg p-4"><p class="text-2xl font-bold text-gray-800" id="summaryPages">—</p><p class="text-xs text-gray-500 mt-1">번역된 페이지</p></div>
+        <div class="bg-gray-50 rounded-lg p-4"><p class="text-2xl font-bold text-gray-800" id="summaryAvgScore">—</p><p class="text-xs text-gray-500 mt-1">평균 유사도</p></div>
+        <div class="bg-gray-50 rounded-lg p-4"><p class="text-2xl font-bold text-gray-800" id="summaryLowCount">—</p><p class="text-xs text-gray-500 mt-1">검토 필요 페이지</p></div>
+      </div>
+      <div id="summaryLowList" class="hidden mt-4 text-xs text-amber-700 bg-amber-50 rounded-lg p-3"></div>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+      <h2 class="text-base font-semibold text-gray-800 mb-4">저장 형식 선택</h2>
+      <div class="grid grid-cols-3 gap-3">
+        <label id="fmtTxt" class="flex flex-col items-center gap-2 border-2 border-blue-500 bg-blue-50 rounded-xl p-4 cursor-pointer transition-all">
+          <input type="radio" name="exportFormat" value="txt" checked class="hidden" />
+          <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          <span class="text-sm font-semibold text-blue-700">TXT</span>
+          <span class="text-xs text-gray-500 text-center">번역문만 포함한 순수 텍스트</span>
+        </label>
+        <label id="fmtPdf" class="flex flex-col items-center gap-2 border-2 border-gray-200 rounded-xl p-4 cursor-pointer hover:border-gray-300 transition-all">
+          <input type="radio" name="exportFormat" value="pdf" class="hidden" />
+          <svg class="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+          <span class="text-sm font-semibold text-gray-700">PDF</span>
+          <span class="text-xs text-gray-500 text-center">표지 포함, 한글 지원</span>
+        </label>
+        <label id="fmtDocx" class="flex flex-col items-center gap-2 border-2 border-gray-200 rounded-xl p-4 cursor-pointer hover:border-gray-300 transition-all">
+          <input type="radio" name="exportFormat" value="docx" class="hidden" />
+          <svg class="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          <span class="text-sm font-semibold text-gray-700">DOCX</span>
+          <span class="text-xs text-gray-500 text-center">Word 형식, 편집 가능</span>
+        </label>
+      </div>
+    </div>
+    <div class="flex justify-end gap-3">
+      <button id="backToStep2Btn" class="px-5 py-3 rounded-xl font-semibold text-gray-600 border border-gray-300 hover:bg-gray-50 transition-colors">← 번역 결과로</button>
+      <button id="downloadBtn" class="px-8 py-3 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        다운로드
+      </button>
+    </div>
+  </div>
+
+  <script>
+    let extractedPages = [], translationResults = [], uploadedFilename = 'document.pdf', totalPageCount = 0;
+    let pagesToTranslate = [], translateIdx = 0, isPaused = false;
+
+    const step1View = document.getElementById('step1View');
+    const step2View = document.getElementById('step2View');
+    const step3View = document.getElementById('step3View');
+    const stepLabel = document.getElementById('stepLabel');
+    const backBtn = document.getElementById('backBtn');
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const selectBtn = document.getElementById('selectBtn');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+    const pageCount = document.getElementById('pageCount');
+    const spinner = document.getElementById('spinner');
+    const errorBox = document.getElementById('errorBox');
+    const errorMsg = document.getElementById('errorMsg');
+    const retryBtn = document.getElementById('retryBtn');
+    const translateBtn = document.getElementById('translateBtn');
+    const previewEmpty = document.getElementById('previewEmpty');
+    const previewContent = document.getElementById('previewContent');
+    const previewMeta = document.getElementById('previewMeta');
+    const rangeSelector = document.getElementById('rangeSelector');
+    const rangeInputs = document.getElementById('rangeInputs');
+    const fromPageInput = document.getElementById('fromPage');
+    const toPageInput = document.getElementById('toPage');
+    const rangeHint = document.getElementById('rangeHint');
+    const progressBar = document.getElementById('progressBar');
+    const progressLabel = document.getElementById('progressLabel');
+    const progressCount = document.getElementById('progressCount');
+    const warningBanner = document.getElementById('warningBanner');
+    const warningDetail = document.getElementById('warningDetail');
+    const resultsSection = document.getElementById('resultsSection');
+    const toStep3Btn = document.getElementById('toStep3Btn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const resumeBtn = document.getElementById('resumeBtn');
+    const pausedNotice = document.getElementById('pausedNotice');
+    const summaryPages = document.getElementById('summaryPages');
+    const summaryAvgScore = document.getElementById('summaryAvgScore');
+    const summaryLowCount = document.getElementById('summaryLowCount');
+    const summaryLowList = document.getElementById('summaryLowList');
+    const summaryPartialNotice = document.getElementById('summaryPartialNotice');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const backToStep2Btn = document.getElementById('backToStep2Btn');
+    const fmtLabels = { txt: document.getElementById('fmtTxt'), pdf: document.getElementById('fmtPdf'), docx: document.getElementById('fmtDocx') };
+
+    document.querySelectorAll('input[name="rangeMode"]').forEach(radio => {
+      radio.addEventListener('change', () => rangeInputs.classList.toggle('hidden', radio.value !== 'range'));
+    });
+
+    document.querySelectorAll('input[name="exportFormat"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        Object.values(fmtLabels).forEach(l => { l.classList.remove('border-blue-500', 'bg-blue-50'); l.classList.add('border-gray-200'); });
+        fmtLabels[radio.value].classList.add('border-blue-500', 'bg-blue-50');
+        fmtLabels[radio.value].classList.remove('border-gray-200');
+      });
+    });
+
+    backBtn.addEventListener('click', () => {
+      step2View.classList.add('hidden'); step3View.classList.add('hidden'); step1View.classList.remove('hidden');
+      stepLabel.textContent = 'Step 1 — PDF 업로드 및 문서 인식'; backBtn.classList.add('hidden');
+    });
+    backToStep2Btn.addEventListener('click', () => {
+      step3View.classList.add('hidden'); step2View.classList.remove('hidden');
+      stepLabel.textContent = 'Step 2 — 번역 및 품질 검증';
+    });
+    pauseBtn.addEventListener('click', () => {
+      isPaused = true; pauseBtn.classList.add('hidden');
+      progressLabel.textContent = '중단 중... (현재 페이지 완료 후 멈춥니다)';
+    });
+    resumeBtn.addEventListener('click', () => {
+      isPaused = false; pausedNotice.classList.add('hidden'); pauseBtn.classList.remove('hidden');
+      progressBar.classList.remove('bg-amber-400'); progressBar.classList.add('bg-blue-500');
+      translateNextPage();
+    });
+
+    downloadBtn.addEventListener('click', async () => {
+      const fmt = document.querySelector('input[name="exportFormat"]:checked').value;
+      downloadBtn.disabled = true; downloadBtn.textContent = '생성 중...';
+      try {
+        const res = await fetch('/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ format: fmt, results: translationResults, filename: uploadedFilename }) });
+        if (!res.ok) { alert('오류: ' + (await res.json()).error); return; }
+        const blob = await res.blob();
+        const cd = res.headers.get('Content-Disposition') || '';
+        const match = cd.match(/filename[^;=\n]*=(?:UTF-8'')?([^;\n"]+)/i);
+        const dlName = match ? decodeURIComponent(match[1].replace(/['"]/g, '')) : `번역.${fmt}`;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = dlName; a.click();
+        URL.revokeObjectURL(url);
+      } catch { alert('다운로드 중 오류가 발생했습니다.'); }
+      finally {
+        downloadBtn.disabled = false;
+        downloadBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg> 다운로드';
+      }
+    });
+
+    toStep3Btn.addEventListener('click', () => {
+      step2View.classList.add('hidden'); step3View.classList.remove('hidden');
+      stepLabel.textContent = 'Step 3 — 파일 저장';
+      const scored = translationResults.filter(r => r.similarity !== null);
+      const avg = scored.length ? scored.reduce((s, r) => s + r.similarity, 0) / scored.length : null;
+      const low = translationResults.filter(r => r.similarity !== null && r.similarity < 0.6);
+      summaryPages.textContent = translationResults.length;
+      summaryAvgScore.textContent = avg !== null ? (avg * 100).toFixed(1) + '%' : '—';
+      summaryLowCount.textContent = low.length;
+      summaryPartialNotice.classList.toggle('hidden', translationResults.length >= pagesToTranslate.length);
+      if (low.length > 0) { summaryLowList.textContent = `검토 필요 페이지: ${low.map(r => 'Page ' + r.page).join(', ')}`; summaryLowList.classList.remove('hidden'); }
+      else { summaryLowList.classList.add('hidden'); }
+    });
+
+    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('border-blue-400', 'bg-blue-50'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('border-blue-400', 'bg-blue-50'));
+    dropzone.addEventListener('drop', e => { e.preventDefault(); dropzone.classList.remove('border-blue-400', 'bg-blue-50'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+    selectBtn.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('click', e => { if (e.target !== selectBtn) fileInput.click(); });
+    fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+    retryBtn.addEventListener('click', resetStep1);
+
+    function resetStep1() {
+      fileInput.value = ''; fileInfo.classList.add('hidden'); rangeSelector.classList.add('hidden'); rangeInputs.classList.add('hidden');
+      document.querySelector('input[name="rangeMode"][value="all"]').checked = true;
+      spinner.classList.add('hidden'); errorBox.classList.add('hidden');
+      previewEmpty.classList.remove('hidden'); previewContent.classList.add('hidden'); previewContent.innerHTML = '';
+      previewMeta.textContent = ''; setTranslateBtn(false); extractedPages = [];
+    }
+
+    function setTranslateBtn(enabled) {
+      translateBtn.disabled = !enabled;
+      translateBtn.classList.toggle('bg-blue-300', !enabled); translateBtn.classList.toggle('cursor-not-allowed', !enabled);
+      translateBtn.classList.toggle('bg-blue-600', enabled); translateBtn.classList.toggle('hover:bg-blue-700', enabled); translateBtn.classList.toggle('cursor-pointer', enabled);
+    }
+
+    async function handleFile(file) {
+      if (!file.name.toLowerCase().endsWith('.pdf')) { showError('PDF 파일만 업로드 가능합니다.'); return; }
+      if (file.size > 20 * 1024 * 1024) { showError('파일 크기가 20MB를 초과합니다.'); return; }
+      resetStep1(); spinner.classList.remove('hidden');
+      const formData = new FormData(); formData.append('file', file);
+      try {
+        const res = await fetch('/upload', { method: 'POST', body: formData });
+        const data = await res.json(); spinner.classList.add('hidden');
+        if (!res.ok) { showError(data.error || '알 수 없는 오류'); return; }
+        uploadedFilename = data.filename; totalPageCount = data.page_count; extractedPages = data.pages;
+        fileName.textContent = data.filename; pageCount.textContent = `총 ${data.page_count}페이지`; fileInfo.classList.remove('hidden');
+        fromPageInput.value = 1; toPageInput.value = data.page_count; rangeHint.textContent = `(1~${data.page_count})`; rangeSelector.classList.remove('hidden');
+        renderPreview(data.pages); previewMeta.textContent = `${data.page_count}페이지 추출 완료`;
+        setTranslateBtn(true); translateBtn.onclick = () => startTranslation(data.pages);
+      } catch { spinner.classList.add('hidden'); showError('서버와 통신 중 오류가 발생했습니다.'); }
+    }
+
+    function showError(msg) { errorMsg.textContent = msg; errorBox.classList.remove('hidden'); fileInfo.classList.add('hidden'); rangeSelector.classList.add('hidden'); }
+
+    function renderPreview(pages) {
+      previewContent.innerHTML = '';
+      pages.forEach(p => {
+        const block = document.createElement('div'); block.className = 'border border-gray-100 rounded-lg p-4';
+        const header = document.createElement('p'); header.className = 'text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide'; header.textContent = `Page ${p.page}`;
+        const body = document.createElement('p'); body.className = 'text-sm text-gray-700 whitespace-pre-wrap leading-relaxed'; body.textContent = p.text || '(텍스트 없음)';
+        if (!p.text) body.classList.add('text-gray-400', 'italic');
+        block.appendChild(header); block.appendChild(body); previewContent.appendChild(block);
+      });
+      previewEmpty.classList.add('hidden'); previewContent.classList.remove('hidden');
+    }
+
+    function startTranslation(pages) {
+      const mode = document.querySelector('input[name="rangeMode"]:checked').value;
+      if (mode === 'range') {
+        const from = Math.max(1, parseInt(fromPageInput.value) || 1);
+        const to = Math.min(totalPageCount, parseInt(toPageInput.value) || totalPageCount);
+        pagesToTranslate = pages.filter(p => p.page >= from && p.page <= to);
+        if (pagesToTranslate.length === 0) { alert(`유효한 페이지 범위를 입력하세요 (1~${totalPageCount})`); return; }
+      } else { pagesToTranslate = pages; }
+      step1View.classList.add('hidden'); step2View.classList.remove('hidden');
+      stepLabel.textContent = 'Step 2 — 번역 및 품질 검증'; backBtn.classList.remove('hidden');
+      translationResults = []; translateIdx = 0; isPaused = false; resultsSection.innerHTML = '';
+      warningBanner.classList.add('hidden'); pausedNotice.classList.add('hidden');
+      progressBar.style.width = '0%'; progressBar.classList.remove('bg-green-500', 'bg-amber-400'); progressBar.classList.add('bg-blue-500');
+      setToStep3Btn(false); pauseBtn.classList.remove('hidden'); pauseBtn.textContent = '⏸ 일시 중단';
+      translateNextPage();
+    }
+
+    async function translateNextPage() {
+      if (translateIdx >= pagesToTranslate.length) { onTranslationComplete(); return; }
+      const p = pagesToTranslate[translateIdx];
+      progressLabel.textContent = `Page ${p.page} 번역 중...`;
+      progressCount.textContent = `${translateIdx} / ${pagesToTranslate.length}`;
+      try {
+        const res = await fetch('/translate_page', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: p.page, text: p.text }) });
+        const data = await res.json();
+        if (!res.ok) { appendResultCard({ page: p.page, original: p.text, translated: null, similarity: null, error: data.error }); }
+        else { translationResults.push(data); appendResultCard(data); }
+      } catch { appendResultCard({ page: p.page, original: p.text, translated: null, similarity: null, error: '네트워크 오류' }); }
+      translateIdx++;
+      progressBar.style.width = `${Math.round(translateIdx / pagesToTranslate.length * 100)}%`;
+      progressCount.textContent = `${translateIdx} / ${pagesToTranslate.length}`;
+      if (translationResults.length > 0) setToStep3Btn(true);
+      if (isPaused) { onTranslationPaused(); return; }
+      translateNextPage();
+    }
+
+    function onTranslationPaused() {
+      progressLabel.textContent = `일시 중단 — ${translateIdx} / ${pagesToTranslate.length} 페이지 완료`;
+      progressBar.classList.remove('bg-blue-500'); progressBar.classList.add('bg-amber-400');
+      pauseBtn.classList.add('hidden'); pausedNotice.classList.remove('hidden');
+    }
+
+    function onTranslationComplete() {
+      progressLabel.textContent = '번역 완료';
+      progressBar.classList.remove('bg-blue-500', 'bg-amber-400'); progressBar.classList.add('bg-green-500');
+      pauseBtn.classList.add('hidden'); pausedNotice.classList.add('hidden'); setToStep3Btn(true);
+      const lowPages = translationResults.filter(r => r.similarity !== null && r.similarity < 0.6);
+      if (lowPages.length > 0) { warningDetail.textContent = `Page ${lowPages.map(r => r.page).join(', ')}의 번역 유사도가 낮습니다.`; warningBanner.classList.remove('hidden'); }
+    }
+
+    function appendResultCard(result) {
+      const card = document.createElement('div');
+      card.id = `card-page-${result.page}`;
+      card.className = 'bg-white rounded-xl border border-gray-200 overflow-hidden';
+      const header = document.createElement('div');
+      header.className = 'px-5 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50';
+      header.innerHTML = `<span class="text-sm font-semibold text-gray-600">Page ${result.page}</span>`;
+      if (result.error) { header.innerHTML += `<span class="text-xs text-red-500 font-medium">오류 발생</span>`; }
+      else { const { label, cls } = scoreStyle(result.similarity); header.innerHTML += `<span class="text-xs font-semibold px-2 py-0.5 rounded-full ${cls}">유사도 ${(result.similarity * 100).toFixed(1)}% · ${label}</span>`; }
+      card.appendChild(header);
+      const body = document.createElement('div');
+      if (result.error) { body.className = 'p-5 text-sm text-red-600'; body.textContent = `번역 실패: ${result.error}`; }
+      else {
+        body.className = 'grid grid-cols-2 divide-x divide-gray-100';
+        const origCol = document.createElement('div'); origCol.className = 'p-5';
+        origCol.innerHTML = `<p class="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">원문 (EN)</p><p class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">${escHtml(result.original)}</p>`;
+        const transCol = document.createElement('div'); transCol.className = 'p-5';
+        transCol.innerHTML = `<p class="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">번역문 (KO)</p><p class="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">${escHtml(result.translated)}</p>`;
+        body.appendChild(origCol); body.appendChild(transCol);
+      }
+      card.appendChild(body);
+      const footer = document.createElement('div'); footer.className = 'px-5 py-3 border-t border-gray-100 flex justify-end';
+      const retranslateBtn = document.createElement('button'); retranslateBtn.className = 'text-xs text-blue-600 hover:underline font-medium'; retranslateBtn.textContent = '재번역';
+      retranslateBtn.onclick = () => retranslatePage(result.page, result.original, card);
+      footer.appendChild(retranslateBtn); card.appendChild(footer); resultsSection.appendChild(card);
+    }
+
+    async function retranslatePage(pageNum, originalText, card) {
+      const btn = card.querySelector('button'); btn.textContent = '번역 중...'; btn.disabled = true;
+      try {
+        const res = await fetch('/translate_page', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: pageNum, text: originalText }) });
+        const data = await res.json();
+        const newCard = document.createElement('div'); newCard.id = `card-page-${pageNum}`;
+        resultsSection.replaceChild(newCard, card);
+        if (res.ok) { const idx = translationResults.findIndex(r => r.page === pageNum); if (idx !== -1) translationResults[idx] = data; appendResultCard(data); }
+        else { appendResultCard({ page: pageNum, original: originalText, translated: null, similarity: null, error: data.error }); }
+      } catch { btn.textContent = '재번역'; btn.disabled = false; }
+    }
+
+    function scoreStyle(score) {
+      if (score >= 0.8) return { label: '우수', cls: 'bg-green-100 text-green-700' };
+      if (score >= 0.6) return { label: '보통', cls: 'bg-yellow-100 text-yellow-700' };
+      return { label: '낙음', cls: 'bg-red-100 text-red-600' };
+    }
+
+    function setToStep3Btn(enabled) {
+      toStep3Btn.disabled = !enabled;
+      toStep3Btn.classList.toggle('bg-green-300', !enabled); toStep3Btn.classList.toggle('cursor-not-allowed', !enabled);
+      toStep3Btn.classList.toggle('bg-green-600', enabled); toStep3Btn.classList.toggle('hover:bg-green-700', enabled); toStep3Btn.classList.toggle('cursor-pointer', enabled);
+    }
+
+    function escHtml(str) { return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  </script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+# 환경 변수 (API 키 등 민감 정보)
+.env
+
+# 업로드 임시 파일
+uploads/
+
+# OS
+.DS_Store
+
+# 에디터
+.vscode/
+.idea/
+install_mcp.txt
+
+# Python 캐시
+__pycache__/
+*.pyc
+
+# Claude Code 설정
+.claude/
+
+# macOS 빌드 산출물
+macos/build/
+macos/dist/
+
+# Windows 빌드 산출물
+windows/dist/
